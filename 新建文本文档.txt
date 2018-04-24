@@ -1,0 +1,82 @@
+Imports System
+Imports System.Text
+Imports System.IO
+Imports System.Threading
+Imports System.Net
+Imports System.Net.Sockets
+Imports Microsoft.VisualBasic
+
+Public Class Form1
+    Private Check_Thread As Thread
+    Delegate Sub My_Delegate(ByVal Data As String)
+
+    Private Sub Button1_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles Button1.Click
+        If OpenFileDialog1.ShowDialog() = Windows.Forms.DialogResult.OK Then
+            Label1.Text = OpenFileDialog1.FileName
+            MinerProc.StartInfo.FileName = OpenFileDialog1.FileName
+            Label1.Text = ">" + Environment.GetFolderPath(Environment.SpecialFolder.Personal) + "\miner.txt"
+        End If
+    End Sub
+
+    Private Sub Button2_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles Button2.Click
+
+        MinerProc.StartInfo.FileName = "zecminer/ZecMiner64.exe"
+
+        Try
+            MinerProc.Start()
+            'MinerProc.BeginOutputReadLine()
+            InfoBox.Items.Insert(0, Now & "开始挖矿...")
+            Button2.Enabled = False
+            Button3.Enabled = True
+            Check_Thread = New Thread(AddressOf CheckMiner)
+            Check_Thread.Start()
+        Catch ex As Exception
+            InfoBox.Items.Insert(0, Now & "核心启动失败：")
+            MsgBox(ex.ToString)
+        End Try
+
+    End Sub
+
+    Private Sub Button3_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles Button3.Click
+        'MinerProc.CancelOutputRead()
+        MinerProc.Kill()
+        MinerProc.Refresh()
+        InfoBox.Items.Insert(0, Now & "停止挖矿")
+        Button2.Enabled = True
+        Button3.Enabled = False
+        Check_Thread.Abort()
+    End Sub
+
+    Private Sub CheckMiner()
+        While (True)
+            Try
+                Dim Client As New TcpClient("127.0.0.1", 3333)
+                Dim Message As String = "{""id"":0,""jsonrpc"":""2.0"",""method"":""miner_getstat1""}"
+                Dim data As [Byte]() = System.Text.Encoding.ASCII.GetBytes(Message)
+                Dim stream As NetworkStream = Client.GetStream()
+                stream.Write(data, 0, data.Length)
+                data = New [Byte](256) {}
+                Dim responseData As [String] = [String].Empty
+                Dim bytes As Int32 = stream.Read(data, 0, data.Length)
+                responseData = System.Text.Encoding.ASCII.GetString(data, 0, bytes)
+                'InfoBox.Items.Insert(0, Now & "" & responseData)
+                Invoke_Thread(responseData) '使用委托
+                stream.Close()
+                Client.Close()
+            Catch ex As Exception
+            End Try
+            Thread.Sleep(1000)
+        End While
+    End Sub
+    '   第三步，给委托传递参数，引发委托  
+    Private Sub Invoke_Thread(ByVal Data As String)
+        Dim hander As New My_Delegate(AddressOf Deal_Delegate)
+        Me.Invoke(hander, Data)
+    End Sub
+    '第四部，更新窗体中控件  
+    Private Sub Deal_Delegate(ByVal Data As String)
+        InfoBox.Items.Insert(0, Now & "" & Data)
+    End Sub
+    '最后别忘记关掉线程  
+  
+End Class
